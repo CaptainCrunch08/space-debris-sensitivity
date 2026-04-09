@@ -1,0 +1,22 @@
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb~
+
+# Results (large binary outputs — commit only the CSVs and JSONs)
+results/*.npy
+results/*.png
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.cursor/
+*.swp
