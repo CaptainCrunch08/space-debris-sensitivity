@@ -64,7 +64,7 @@ def main() -> None:
     # ------------------------------------------------------------------
     # 0. Baseline trajectories
     # ------------------------------------------------------------------
-    print("\n[1/4] Generating baseline trajectories (F10.7=150, PMD=90%)…")
+    print("\n[1/4] Generating baseline trajectories (F10.7=150, PMD=25%)...")
     c_base = CascadeModel()
     c_result = c_base.run(years=years)
 
@@ -77,8 +77,9 @@ def main() -> None:
     }
 
     fig_base = plot_baseline_trajectories(c_result, ms_result)
-    print(f"  Cascade  final N = {c_result['N'][-1]:,.0f}")
-    print(f"  MultiSh  final N = {ms_ens['N_total_mean'][-1]:,.0f}")
+    print(f"  Cascade  final N (all) = {c_result['N'][-1]:,.0f}  "
+          f"(>=10cm: {c_result['N_large'][-1]:,.0f})")
+    print(f"  MultiSh  final N (all) = {ms_ens['N_total_mean'][-1]:,.0f}")
 
     # ------------------------------------------------------------------
     # 1. Parameter sweep

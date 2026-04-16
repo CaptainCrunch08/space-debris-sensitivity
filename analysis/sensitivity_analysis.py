@@ -42,8 +42,10 @@ from models.multishell_model import MultiShellModel
 def _cascade_outputs(model: CascadeModel, years: int) -> dict[str, float]:
     res = model.run(years=years)
     return {
-        "N_final": float(res["N"][-1]),
+        "N_final": float(res["N"][-1]),          # S + D + Ds (all populations)
+        "N_large_final": float(res["N_large"][-1]),  # S + D (>=10 cm only)
         "D_final": float(res["D"][-1]),
+        "Ds_final": float(res["Ds"][-1]),
         "R_col_final": float(res["R_col"][-1]),
         "N_integrated": float(np.trapezoid(res["N"], res["t"])),
     }
@@ -52,7 +54,7 @@ def _cascade_outputs(model: CascadeModel, years: int) -> dict[str, float]:
 def _multishell_outputs(model: MultiShellModel, years: int, n_runs: int) -> dict[str, float]:
     ens = model.run_ensemble(years=years, n_runs=n_runs)
     return {
-        "N_final": float(ens["N_total_mean"][-1]),
+        "N_final": float(ens["N_total_mean"][-1]),   # S + D + Ds
         "R_col_final": float(ens["R_col_mean"][-1]),
         "N_integrated": float(np.trapezoid(ens["N_total_mean"], ens["t"])),
     }
@@ -193,15 +195,22 @@ class SolarFluxSensitivity:
 
     def run_sobol_multi(
         self,
-        launch_rate_range: tuple[float, float] = (100.0, 400.0),
-        pmd_range: tuple[float, float] = (0.50, 0.99),
+        launch_rate_range: tuple[float, float] = (100.0, 600.0),
+        pmd_range: tuple[float, float] = (0.20, 0.99),
     ) -> dict:
         """Three-parameter Sobol analysis: F10.7, launch_rate, pmd_compliance.
+
+        Parameter ranges are grounded in primary literature:
+          - launch_rate 100-600/yr: spans pre-constellation (100-200) through
+            heavy constellation deployment (400-600), per Zhang et al. (2022).
+          - pmd_compliance 0.20-0.99: lower bound reflects the global 20-30%
+            historical compliance rate (NASA OIG IG-21-011, 2021); upper bound
+            represents near-full policy compliance tested by Liou & Krisko (2013).
 
         First-order (S1) and total-effect (ST) indices reveal:
           - How much variance each parameter independently explains (S1).
           - How much variance each parameter explains including interactions (ST).
-          - Whether S1 ≪ ST, indicating strong parameter interactions.
+          - Whether S1 << ST, indicating strong parameter interactions.
 
         Returns
         -------

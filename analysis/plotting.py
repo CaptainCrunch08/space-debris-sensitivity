@@ -35,25 +35,48 @@ def plot_baseline_trajectories(
     multishell_result: dict,
     save: bool = True,
 ) -> plt.Figure:
-    """Plot total debris population over time for both models."""
-    fig, axes = plt.subplots(1, 2, figsize=(12, 4.5))
+    """Plot total debris population over time for both models.
 
-    # Population
+    Shows all three population classes (S, D>=10cm, Ds=1mm-10cm) for the
+    cascade model, and total N for the multi-shell ensemble.
+    """
+    fig, axes = plt.subplots(1, 3, figsize=(16, 4.5))
+
+    # Cascade: stacked population breakdown
     ax = axes[0]
-    ax.plot(cascade_result["t"], cascade_result["N"],
+    t_c = cascade_result["t"]
+    ax.stackplot(
+        t_c,
+        cascade_result["S"],
+        cascade_result["D"],
+        cascade_result["Ds"],
+        labels=["Intact (S)", "Large debris D (>=10 cm)", "Small debris Ds (1mm-10cm)"],
+        colors=["#3b82f6", "#f97316", "#ef4444"],
+        alpha=0.85,
+    )
+    ax.set_xlabel("Time [yr]")
+    ax.set_ylabel("Objects")
+    ax.set_title("Cascade model — population breakdown")
+    ax.legend(fontsize=8, loc="upper left")
+    ax.yaxis.set_major_formatter(mticker.FuncFormatter(lambda x, _: f"{x:,.0f}"))
+    ax.grid(alpha=0.3)
+
+    # Both models: total N comparison
+    ax = axes[1]
+    ax.plot(t_c, cascade_result["N"],
             color=STYLE["cascade"]["color"], lw=2, label=STYLE["cascade"]["label"])
     ax.plot(multishell_result["t"], multishell_result["N_total"],
             color=STYLE["multishell"]["color"], lw=2, ls="--", label=STYLE["multishell"]["label"])
     ax.set_xlabel("Time [yr]")
-    ax.set_ylabel("Total objects (S + D)")
-    ax.set_title("Baseline debris population evolution")
+    ax.set_ylabel("Total objects (S + D + Ds)")
+    ax.set_title("Total population — both models")
     ax.legend()
     ax.yaxis.set_major_formatter(mticker.FuncFormatter(lambda x, _: f"{x:,.0f}"))
     ax.grid(alpha=0.3)
 
     # Collision rate
-    ax = axes[1]
-    ax.plot(cascade_result["t"], cascade_result["R_col"],
+    ax = axes[2]
+    ax.plot(t_c, cascade_result["R_col"],
             color=STYLE["cascade"]["color"], lw=2, label=STYLE["cascade"]["label"])
     ax.plot(multishell_result["t"], multishell_result["R_col_mean"],
             color=STYLE["multishell"]["color"], lw=2, ls="--", label=STYLE["multishell"]["label"])
@@ -63,6 +86,7 @@ def plot_baseline_trajectories(
     ax.legend()
     ax.grid(alpha=0.3)
 
+    fig.suptitle("Baseline trajectories (F10.7=150, PMD=90%, Launch=200/yr)", fontsize=13)
     fig.tight_layout()
     if save:
         _save(fig, "01_baseline_trajectories.png")
