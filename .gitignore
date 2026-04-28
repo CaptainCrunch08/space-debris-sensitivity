@@ -11,9 +11,8 @@ build/
 .ipynb_checkpoints/
 *.ipynb~
 
-# Results (large binary outputs — commit only the CSVs and JSONs)
+# Results — large binary numpy arrays excluded; figures and data committed
 results/*.npy
-results/*.png
 
 # OS / editor
 .DS_Store
