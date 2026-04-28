@@ -18,6 +18,7 @@ Shell definitions (mid-altitude used for physics calculations):
   Shell 1:  600-700 km  (mid ~650 km)
   Shell 2:  700-800 km  (mid ~750 km)
   Shell 3:  800-900 km  (mid ~850 km)
+  Shell 4:  900-1000 km (mid ~950 km)
 
 References
 ----------
@@ -37,8 +38,8 @@ from numpy.random import default_rng
 # Shell geometry constants
 # ---------------------------------------------------------------------------
 
-SHELL_BOUNDS_KM = [(500, 600), (600, 700), (700, 800), (800, 900)]
-SHELL_MIDS_KM = [550.0, 650.0, 750.0, 850.0]
+SHELL_BOUNDS_KM = [(500, 600), (600, 700), (700, 800), (800, 900), (900, 1000)]
+SHELL_MIDS_KM = [550.0, 650.0, 750.0, 850.0, 950.0]
 N_SHELLS = len(SHELL_MIDS_KM)
 
 EARTH_RADIUS_KM = 6371.0
@@ -62,12 +63,14 @@ SHELL_VOLUMES_KM3 = np.array(
 # ---------------------------------------------------------------------------
 
 # Reference lifetimes [yr] at F10.7 = 150 sfu:
-#   550 km ~5 yr,  650 km ~20 yr,  750 km ~100 yr,  850 km ~400 yr
-TAU_D_REF = np.array([5.0, 20.0, 100.0, 400.0], dtype=float)
+#   550 km ~5 yr,  650 km ~20 yr,  750 km ~100 yr,  850 km ~400 yr,
+#   950 km ~1500 yr  (atmosphere near-negligible; cited range IADC 2013)
+TAU_D_REF = np.array([5.0, 20.0, 100.0, 400.0, 1500.0], dtype=float)
 TAU_D_F10_REF = 150.0
 
 # Drag exponent per shell (lower shells more sensitive to solar activity).
-DRAG_EXPONENTS = np.array([2.0, 1.8, 1.5, 1.2], dtype=float)
+# At 950 km drag is so weak that F10.7 has minimal effect; exponent drops to 0.8.
+DRAG_EXPONENTS = np.array([2.0, 1.8, 1.5, 1.2, 0.8], dtype=float)
 
 
 def debris_lifetime(F10_7: float) -> np.ndarray:
@@ -95,7 +98,7 @@ def small_debris_lifetime(F10_7: float) -> np.ndarray:
 # Intact-object lifetime (PMD-driven, not directly F10.7)
 # ---------------------------------------------------------------------------
 
-TAU_S_NATURAL = np.array([50.0, 150.0, 500.0, 2000.0], dtype=float)
+TAU_S_NATURAL = np.array([50.0, 150.0, 500.0, 2000.0, 5000.0], dtype=float)
 TAU_S_PMD = 25.0
 
 
@@ -128,17 +131,49 @@ def collision_rate(N_i: float, N_j: float, sigma: float, V_shell_km3: float) -> 
     return sigma * V_REL_KM_S * SEC_PER_YR * N_i * N_j / V_shell_km3
 
 
+# Thresholds for collision sampling fallbacks.
+# At extreme Sobol parameter combinations (high launch rate + low PMD + solar
+# minimum), the 900-1000 km shell accumulates debris with ~2800-yr lifetimes,
+# driving D^2 collision rates to values that overflow numpy's Poisson sampler.
+# This mirrors behaviour documented in IADC (2013) for that altitude band.
+#
+# Strategy:
+#   lam <= 1e6  : standard Poisson sample
+#   1e6 < lam <= 1e12 : Normal(lam, sqrt(lam)) approximation (statistically
+#                       indistinguishable from Poisson for large lambda)
+#   lam > 1e12  : population has diverged to unphysical levels; return
+#                 deterministic mean with no noise (noise is negligible
+#                 relative to mean at this scale)
+#   non-finite  : guard against inf/NaN from float overflow; return 0
+_POISSON_NORMAL_THRESHOLD = 1.0e6
+_POISSON_HARD_CAP = 1.0e12
+
+
+def _sample_collisions(rng: np.random.Generator, lam: float) -> int:
+    """Sample collision count from Poisson(lam), with fallbacks for large lam."""
+    if lam <= 0.0 or not np.isfinite(lam):
+        return 0
+    if lam > _POISSON_HARD_CAP:
+        return int(_POISSON_HARD_CAP)
+    if lam > _POISSON_NORMAL_THRESHOLD:
+        return max(0, int(round(lam + np.sqrt(lam) * rng.standard_normal())))
+    return int(rng.poisson(lam))
+
+
 # ---------------------------------------------------------------------------
 # Fragment redistribution weights
 # ---------------------------------------------------------------------------
 
 # Large fragments (>=10 cm) redistribution: modest ΔV spread.
+# Rows = shell where collision occurred; columns = shell receiving fragments.
+# Each row sums to 1.0.
 FRAG_REDISTRIB = np.array(
     [
-        [0.50, 0.30, 0.15, 0.05],
-        [0.20, 0.50, 0.25, 0.05],
-        [0.05, 0.20, 0.55, 0.20],
-        [0.05, 0.10, 0.30, 0.55],
+        [0.50, 0.28, 0.13, 0.05, 0.04],  # collision in shell 0 (550 km)
+        [0.18, 0.48, 0.23, 0.07, 0.04],  # collision in shell 1 (650 km)
+        [0.05, 0.18, 0.52, 0.20, 0.05],  # collision in shell 2 (750 km)
+        [0.04, 0.08, 0.25, 0.48, 0.15],  # collision in shell 3 (850 km)
+        [0.03, 0.07, 0.12, 0.28, 0.50],  # collision in shell 4 (950 km)
     ]
 )
 
@@ -146,10 +181,11 @@ FRAG_REDISTRIB = np.array(
 # ejection and lighter mass (Anz-Meador 2010; Flegel et al. 2010).
 FRAG_REDISTRIB_SMALL = np.array(
     [
-        [0.40, 0.30, 0.20, 0.10],
-        [0.15, 0.45, 0.30, 0.10],
-        [0.10, 0.20, 0.45, 0.25],
-        [0.10, 0.15, 0.30, 0.45],
+        [0.38, 0.28, 0.18, 0.10, 0.06],  # collision in shell 0 (550 km)
+        [0.13, 0.43, 0.27, 0.11, 0.06],  # collision in shell 1 (650 km)
+        [0.08, 0.18, 0.43, 0.23, 0.08],  # collision in shell 2 (750 km)
+        [0.07, 0.12, 0.24, 0.43, 0.14],  # collision in shell 3 (850 km)
+        [0.06, 0.10, 0.17, 0.27, 0.40],  # collision in shell 4 (950 km)
     ]
 )
 
@@ -165,7 +201,7 @@ class MultiShellModel:
     ----------
     launch_rate : float
         Total annual launch rate [objects/yr].
-    launch_distribution : array-like of length 4
+    launch_distribution : array-like of length 5
         Fraction of launches into each shell (must sum to 1).
     pmd_compliance : float
         PMD compliance fraction [0, 1].
@@ -175,11 +211,11 @@ class MultiShellModel:
         Large (>=10 cm) fragments per catastrophic collision.
     k_small_frags : float
         Small (1 mm-10 cm) fragments per catastrophic collision.
-    S0 : array-like of length 4
+    S0 : array-like of length 5
         Initial intact-object population per shell.
-    D0 : array-like of length 4
+    D0 : array-like of length 5
         Initial large-debris population per shell.
-    Ds0 : array-like of length 4
+    Ds0 : array-like of length 5
         Initial small-debris population per shell.
     dt : float
         Time step [yr].
@@ -205,7 +241,7 @@ class MultiShellModel:
         self.launch_distribution = (
             np.array(launch_distribution, dtype=float)
             if launch_distribution is not None
-            else np.array([0.15, 0.35, 0.35, 0.15], dtype=float)
+            else np.array([0.15, 0.30, 0.30, 0.15, 0.10], dtype=float)
         )
         self.pmd_compliance = pmd_compliance
         self.F10_7 = F10_7
@@ -214,12 +250,12 @@ class MultiShellModel:
         self.S0 = (
             np.array(S0, dtype=float)
             if S0 is not None
-            else np.array([300.0, 600.0, 700.0, 400.0], dtype=float)
+            else np.array([300.0, 600.0, 700.0, 400.0, 200.0], dtype=float)
         )
         self.D0 = (
             np.array(D0, dtype=float)
             if D0 is not None
-            else np.array([1500.0, 3500.0, 3000.0, 2000.0], dtype=float)
+            else np.array([1500.0, 3500.0, 3000.0, 2000.0, 1500.0], dtype=float)
         )
         # Default Ds0: ~25x D0 per shell, consistent with the ~500k/>1cm
         # vs ~20k/>10cm tracking ratio (ORDEM 3.1; ESA Annual Space Env. Report).
@@ -293,16 +329,16 @@ class MultiShellModel:
 
                 # -- Collision sampling --
                 lam_SS = collision_rate(s[i], s[i], SIGMA_SS, V) * dt
-                n_SS = self.rng.poisson(max(lam_SS, 0.0))
+                n_SS = _sample_collisions(self.rng, lam_SS)
 
                 lam_SD = collision_rate(s[i], d[i], SIGMA_SD, V) * dt
-                n_SD = self.rng.poisson(max(lam_SD, 0.0))
+                n_SD = _sample_collisions(self.rng, lam_SD)
 
                 lam_DD = collision_rate(d[i], d[i], SIGMA_DD, V) * dt
-                n_DD = self.rng.poisson(max(lam_DD, 0.0))
+                n_DD = _sample_collisions(self.rng, lam_DD)
 
                 lam_SDs = collision_rate(s[i], ds[i], SIGMA_SDs, V) * dt
-                n_SDs = self.rng.poisson(max(lam_SDs, 0.0))
+                n_SDs = _sample_collisions(self.rng, lam_SDs)
 
                 n_total_col = n_SS + n_SD + n_DD + n_SDs
                 total_collisions += n_total_col

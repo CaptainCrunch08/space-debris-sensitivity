@@ -91,7 +91,7 @@ class SolarFluxSensitivity:
     def __init__(
         self,
         years: int = 200,
-        n_ensemble: int = 30,
+        n_ensemble: int = 50,
         f107_range: tuple[float, float] = (70.0, 230.0),
         sweep_n_points: int = 33,
         sobol_n_base: int = 256,
@@ -202,10 +202,12 @@ class SolarFluxSensitivity:
 
         Parameter ranges are grounded in primary literature:
           - launch_rate 100-600/yr: spans pre-constellation (100-200) through
-            heavy constellation deployment (400-600), per Zhang et al. (2022).
-          - pmd_compliance 0.20-0.99: lower bound reflects the global 20-30%
-            historical compliance rate (NASA OIG IG-21-011, 2021); upper bound
-            represents near-full policy compliance tested by Liou & Krisko (2013).
+            early constellation deployment (400-600), per Zhang et al. (2022).
+          - pmd_compliance 0.20-0.99: bounds span the full observed-to-aspirational
+            range. The global historical rate of 20-30% (NASA OIG IG-21-011, 2021)
+            anchors the lower end; 0.25 is used as the baseline midpoint of that
+            range. The upper bound of 0.99 matches the near-full compliance scenario
+            tested by Liou & Krisko (2013).
 
         First-order (S1) and total-effect (ST) indices reveal:
           - How much variance each parameter independently explains (S1).

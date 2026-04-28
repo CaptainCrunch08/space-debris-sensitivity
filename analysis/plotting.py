@@ -86,7 +86,7 @@ def plot_baseline_trajectories(
     ax.legend()
     ax.grid(alpha=0.3)
 
-    fig.suptitle("Baseline trajectories (F10.7=150, PMD=90%, Launch=200/yr)", fontsize=13)
+    fig.suptitle("Baseline trajectories (F10.7=150, PMD=25%, Launch=200/yr)", fontsize=13)
     fig.tight_layout()
     if save:
         _save(fig, "01_baseline_trajectories.png")

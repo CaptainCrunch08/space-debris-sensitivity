@@ -56,7 +56,7 @@ def main() -> None:
         years, sweep_n, sobol_n, n_ens = 50, 11, 64, 10
         print("Running in QUICK mode (reduced fidelity for testing).")
     else:
-        years, sweep_n, sobol_n, n_ens = 200, 33, 256, 30
+        years, sweep_n, sobol_n, n_ens = 200, 33, 256, 50
         print("Running in FULL mode.")
 
     t0 = time.time()
