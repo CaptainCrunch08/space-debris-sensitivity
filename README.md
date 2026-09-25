@@ -1,4 +1,4 @@
-# Space Debris Population Evolution — Sensitivity Analysis
+# Space Debris Population Evolution - Sensitivity Analysis
 
 Cross-model sensitivity analysis comparing two classes of LEO debris
 evolution models on their response to solar flux (F10.7).
@@ -6,8 +6,7 @@ evolution models on their response to solar flux (F10.7).
 ## Research question
 
 Do different modeling frameworks (deterministic cascade vs. multi-shell
-stochastic) place different weights on the same environmental parameter
-(solar flux / atmospheric drag)?
+stochastic) place different weights on the same environmental parameters?
 
 ## Models implemented
 
